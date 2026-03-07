@@ -18,13 +18,16 @@ def build_parser():
         "init",
         help="scaffold a new dotfiles repo",
     )
+    init_parser.add_argument("path", nargs="?", default=".")
     init_parser.set_defaults(func=cmd_init)
 
-    return parser.parse_args()
+    return parser
 
 def main():
-    args = build_parser()
-    return args.func(args)
+    parser = build_parser()
+    args = parser.parse_args()
+    args.func(args)
+    return 0
 
 if __name__ == "__main__":
     sys.exit(main())
