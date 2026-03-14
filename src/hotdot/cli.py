@@ -2,6 +2,7 @@ import argparse
 import sys
 
 from hotdot.init import cmd_init
+from hotdot.profile import cmd_profile
 
 def build_parser():
     parser = argparse.ArgumentParser(
@@ -16,10 +17,17 @@ def build_parser():
 
     init_parser = subparsers.add_parser(
         "init",
-        help="scaffold a new dotfiles repo",
+        help="scaffold a new dotfiles repo.",
     )
     init_parser.add_argument("path", nargs="?", default=".")
     init_parser.set_defaults(func=cmd_init)
+
+    profile_parser = subparsers.add_parser(
+        "profile",
+        help="add a new profile.",
+    )
+    profile_parser.add_argument("name")
+    profile_parser.set_defaults(func=cmd_profile)
 
     return parser
 
