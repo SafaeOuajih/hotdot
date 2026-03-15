@@ -1,8 +1,10 @@
 import argparse
+from audioop import add
 import sys
 
 from hotdot.init import cmd_init
 from hotdot.profile import cmd_profile
+from hotdot.source import cmd_add, cmd_list
 
 def build_parser():
     parser = argparse.ArgumentParser(
@@ -28,6 +30,21 @@ def build_parser():
     )
     profile_parser.add_argument("name")
     profile_parser.set_defaults(func=cmd_profile)
+
+    add_parser = subparsers.add_parser(
+        "add",
+        help="add a source to a profile.",
+    )
+    add_parser.add_argument("package")
+    add_parser.add_argument("profile")
+    add_parser.set_defaults(func=cmd_add)
+
+    list_parser = subparsers.add_parser(
+        "list",
+        help="list available sources.",
+    )
+    # list_parser.add_argument("profile")
+    list_parser.set_defaults(func=cmd_list)
 
     return parser
 

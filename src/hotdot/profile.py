@@ -23,14 +23,17 @@ def profile_exist(name):
     with open(get_active_repo()+ "/" + PROFILES_FILE, "r", -1, "utf_8") as f:
         for line in f:
             if (name == line.strip("\n")):
-                print('profile already exist')
                 f.close()
                 return True
         f.close()
     return False
 
+def get_profile_file(name:str):
+    return get_active_repo()+ "/" + PROFILES_FILE
+
 def cmd_profile(args):
     if profile_exist(args.name):
+        print('profile already exist')
         return 0
 
     with open(get_active_repo()+ "/" + PROFILES_FILE, "a") as f:
