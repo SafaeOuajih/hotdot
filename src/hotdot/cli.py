@@ -1,5 +1,4 @@
 import argparse
-from audioop import add
 import sys
 
 from hotdot.init import cmd_init

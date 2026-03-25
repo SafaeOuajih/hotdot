@@ -42,27 +42,66 @@ def print_sources(list: list[Source]):
 def get_source_dir():
     return get_active_repo()+"/sources/"
 
-def source_exist(src_name: str):
+def get_all_sources():
     sources = []
     files = glob.glob(get_source_dir()+"*.src")
     for f in files:
         srcs = list(parse_source_file(f))
         sources.extend(srcs)
+    return sources
 
-    for src in sources:
-        print(src.name, src_name)
+def source_exist(src_name: str):
+    for src in get_all_sources():
         if src.name == src_name:
             return True
     return False
 
+def source_profiles(src: Source):
+    if not getattr(src, "profile", None):
+        return []
+    return [p.strip() for p in src.profile.split(",") if p.strip()]
+
 # -- List available sources/packages
 def cmd_list(args):
-    sources = []
+    print_sources(get_all_sources())
+
+# -- Tag a source file with a profile, in place --
+def tag_source_with_profile(src_name: str, profile: str):
     files = glob.glob(get_source_dir()+"*.src")
-    for f in files:
-        srcs = list(parse_source_file(f))
-        sources.extend(srcs)
-    print_sources(sources)
+    for path in files:
+        with open(path, "r") as f:
+            lines = f.readlines()
+
+        in_block = False
+        name_matches = False
+        profile_line = None
+        for i, line in enumerate(lines):
+            if line.startswith('{'):
+                in_block = True
+                name_matches = False
+                profile_line = None
+                continue
+            if in_block and line.strip().startswith('name'):
+                name_matches = (line.strip().split(':')[1]).strip() == src_name
+                continue
+            if in_block and line.strip().startswith('profile'):
+                profile_line = i
+                continue
+            if line.startswith('}'):
+                if name_matches:
+                    if profile_line is not None:
+                        current = lines[profile_line].split(':', 1)[1].strip()
+                        profiles = [p.strip() for p in current.split(',') if p.strip()]
+                        if profile not in profiles:
+                            profiles.append(profile)
+                        lines[profile_line] = "    profile: " + ", ".join(profiles) + "\n"
+                    else:
+                        lines.insert(i, "    profile: " + profile + "\n")
+                    with open(path, "w") as f:
+                        f.writelines(lines)
+                    return True
+                in_block = False
+    return False
 
 # -- Adopt a source for a profile
 def cmd_add(args):
@@ -74,5 +113,12 @@ def cmd_add(args):
     if not source_exist(src_name):
         print("source does not exist")
         return
-    #-- Tag the source file name with the user name --#
+
+    for src in get_all_sources():
+        if src.name == src_name and profile in source_profiles(src):
+            print(src_name, "already uses profile", profile)
+            return
+
+    tag_source_with_profile(src_name, profile)
+    print("added", src_name, "to profile", profile)
 
