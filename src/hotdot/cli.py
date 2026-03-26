@@ -3,7 +3,7 @@ import sys
 
 from hotdot.init import cmd_init
 from hotdot.profile import cmd_profile
-from hotdot.source import cmd_add, cmd_list
+from hotdot.source import cmd_add, cmd_list, cmd_rm
 
 def build_parser():
     parser = argparse.ArgumentParser(
@@ -37,6 +37,14 @@ def build_parser():
     add_parser.add_argument("package")
     add_parser.add_argument("profile")
     add_parser.set_defaults(func=cmd_add)
+
+    rm_parser = subparsers.add_parser(
+        "rm",
+        help="remove a source from a profile.",
+    )
+    rm_parser.add_argument("package")
+    rm_parser.add_argument("profile")
+    rm_parser.set_defaults(func=cmd_rm)
 
     list_parser = subparsers.add_parser(
         "list",

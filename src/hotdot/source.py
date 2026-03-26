@@ -122,3 +122,57 @@ def cmd_add(args):
     tag_source_with_profile(src_name, profile)
     print("added", src_name, "to profile", profile)
 
+# -- Untag a source file from a profile, in place --
+def untag_source_from_profile(src_name: str, profile: str):
+    files = glob.glob(get_source_dir()+"*.src")
+    for path in files:
+        with open(path, "r") as f:
+            lines = f.readlines()
+
+        in_block = False
+        name_matches = False
+        profile_line = None
+        for i, line in enumerate(lines):
+            if line.startswith('{'):
+                in_block = True
+                name_matches = False
+                profile_line = None
+                continue
+            if in_block and line.strip().startswith('name'):
+                name_matches = (line.strip().split(':')[1]).strip() == src_name
+                continue
+            if in_block and line.strip().startswith('profile'):
+                profile_line = i
+                continue
+            if line.startswith('}'):
+                if name_matches and profile_line is not None:
+                    current = lines[profile_line].split(':', 1)[1].strip()
+                    profiles = [p.strip() for p in current.split(',') if p.strip() and p.strip() != profile]
+                    lines[profile_line] = "    profile: " + ", ".join(profiles) + "\n"
+                    with open(path, "w") as f:
+                        f.writelines(lines)
+                    return True
+                in_block = False
+    return False
+
+# -- Drop a source from a profile
+def cmd_rm(args):
+    src_name = args.package
+    profile = args.profile
+    if not source_exist(src_name):
+        print("source does not exist")
+        return
+
+    matched = None
+    for src in get_all_sources():
+        if src.name == src_name:
+            matched = src
+            break
+
+    if profile not in source_profiles(matched):
+        print(src_name, "does not use profile", profile)
+        return
+
+    untag_source_from_profile(src_name, profile)
+    print("removed", src_name, "from profile", profile)
+
