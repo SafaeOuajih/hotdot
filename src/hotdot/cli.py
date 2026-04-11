@@ -1,6 +1,7 @@
 import argparse
 import sys
 
+from hotdot.__init__ import __version__
 from hotdot.init import cmd_init
 from hotdot.profile import cmd_profile
 from hotdot.source import cmd_add, cmd_list, cmd_rm
@@ -9,6 +10,11 @@ def build_parser():
     parser = argparse.ArgumentParser(
         prog="hotdot",
         description="Manage your dotfiles with Stow.",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version="hotdot " + __version__,
     )
 
     subparsers = parser.add_subparsers(
