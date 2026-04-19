@@ -12,7 +12,18 @@ def config_dir():
 def active_repo_file():
     return config_dir() / "active-repo"
 
+def find_repo_here():
+    cur = Path.cwd()
+    for candidate in [cur] + list(cur.parents):
+        if (candidate / ".hotdot").is_dir():
+            return str(candidate)
+    return None
+
 def get_active_repo():
+    found = find_repo_here()
+    if found:
+        return found
+
     line = None
     with open(active_repo_file(), "r+") as f:
         line = f.readline()
