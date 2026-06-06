@@ -5,7 +5,7 @@ from hotdot.__init__ import __version__
 from hotdot.init import cmd_init
 from hotdot.profile import cmd_profile
 from hotdot.source import cmd_add, cmd_list, cmd_rm
-from hotdot.sync import cmd_sync
+from hotdot.sync import cmd_sync, cmd_switch
 
 def build_parser():
     parser = argparse.ArgumentParser(
@@ -65,6 +65,13 @@ def build_parser():
         help="fetch sources and stow the active profile.",
     )
     sync_parser.set_defaults(func=cmd_sync)
+
+    switch_parser = subparsers.add_parser(
+        "switch",
+        help="switch the active profile.",
+    )
+    switch_parser.add_argument("name")
+    switch_parser.set_defaults(func=cmd_switch)
 
     return parser
 

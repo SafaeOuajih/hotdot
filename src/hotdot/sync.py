@@ -1,8 +1,11 @@
 import subprocess
 from pathlib import Path
 
-from hotdot.profile import get_active_repo, ACTIVE_PROFILE_FILE
+from hotdot.profile import get_active_repo, profile_exist, ACTIVE_PROFILE_FILE
 from hotdot.source import get_all_sources, source_profiles
+
+STATE_FILE = ".hotdot/state"
+STAGE_DIR = ".hotdot/stage"
 
 def get_active_profile():
     path = Path(get_active_repo()) / ACTIVE_PROFILE_FILE
@@ -11,8 +14,33 @@ def get_active_profile():
     name = path.read_text().strip()
     return name if name else None
 
+def set_active_profile(name):
+    (Path(get_active_repo()) / ACTIVE_PROFILE_FILE).write_text(name + "\n")
+
 def get_stowable_dir():
     return Path(get_active_repo()) / "stowable"
+
+def get_stage_dir():
+    return Path(get_active_repo()) / STAGE_DIR
+
+def get_state_file():
+    return Path(get_active_repo()) / STATE_FILE
+
+def read_state():
+    f = get_state_file()
+    if not f.exists():
+        return {}
+    state = {}
+    for line in f.read_text().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        name, _, storage = line.partition("\t")
+        state[name] = storage
+    return state
+
+def write_state(mapping):
+    get_state_file().write_text("".join(n + "\t" + s + "\n" for n, s in sorted(mapping.items())))
 
 # -- Sources sharing a name need their own stowable/ dir per profile --
 def storage_name(src, all_sources):
@@ -44,33 +72,67 @@ def run_stow(args):
         print("hotdot: stow failed, see the warnings above")
         return False
 
+# -- Flat symlinks so stow (which rejects "/" in package names) can address nested storage --
+def rebuild_stage(stage, stowable, mapping):
+    if stage.exists():
+        for child in stage.iterdir():
+            child.unlink()
+    else:
+        stage.mkdir(parents=True)
+    for name, storage in mapping.items():
+        (stage / name).symlink_to(stowable / storage)
+
+# -- Fetch, stow the given profile's sources and cleanly unstow whatever it dropped --
+def sync_profile(profile):
+    all_sources = get_all_sources()
+    sources = [s for s in all_sources if profile in source_profiles(s)]
+
+    active = {}
+    for src in sources:
+        storage = storage_name(src, all_sources)
+        if storage is None:
+            print(src.name, "is ambiguous; give it a single profile or edit sources/ directly")
+            continue
+        fetch_source(src, storage)
+        if (get_stowable_dir() / storage).exists():
+            active[src.name] = storage
+        else:
+            print("skipping", src.name, "(nothing under stowable/ yet)")
+
+    previous = read_state()
+    removed = {n: s for n, s in previous.items() if n not in active}
+
+    stage = get_stage_dir()
+    stowable = get_stowable_dir()
+    rebuild_stage(stage, stowable, {**removed, **active})
+
+    home = str(Path.home())
+    if removed:
+        run_stow(["-D", "-t", home, "-d", str(stage), *sorted(removed)])
+    if active:
+        run_stow(["-t", home, "-d", str(stage), *sorted(active)])
+    rebuild_stage(stage, stowable, active)
+
+    write_state(active)
+    return active
+
 def cmd_sync(args):
     profile = get_active_profile()
     if not profile:
         print("no active profile set")
         return
 
-    all_sources = get_all_sources()
-    sources = [s for s in all_sources if profile in source_profiles(s)]
-    if not sources:
-        print("nothing to sync for profile", profile)
+    packages = sync_profile(profile)
+    if packages:
+        print("synced", len(packages), "package(s)")
+    else:
+        print("nothing to sync")
+
+def cmd_switch(args):
+    if not profile_exist(args.name):
+        print("profile does not exist\n\tuse : hotdot profile <..> to create a new profile")
         return
 
-    packages = []
-    for src in sources:
-        name = storage_name(src, all_sources)
-        if name is None:
-            print(src.name, "is ambiguous; give it a single profile or edit sources/ directly")
-            continue
-        fetch_source(src, name)
-        if (get_stowable_dir() / name).exists():
-            packages.append(name)
-        else:
-            print("skipping", src.name, "(nothing under stowable/ yet)")
-
-    if not packages:
-        print("nothing to sync for profile", profile)
-        return
-
-    run_stow(["-t", str(Path.home()), "-d", str(get_stowable_dir()), *sorted(packages)])
-    print("synced", len(packages), "package(s)")
+    set_active_profile(args.name)
+    packages = sync_profile(args.name)
+    print("switched to profile", args.name, "(", len(packages), "package(s))")
