@@ -6,33 +6,43 @@ class Source():
     fetch : str
     goes_to : str
     profile : str
+    file : str
+    start : int
+    end : int
 
 def parse_source_file(src_file) -> list[Source]:
     sources = []
     with open(src_file, "r") as f:
-        # parse the .src file
-        # keep it dumb for now
-        src = Source()
-        for line in f:
-            if (line.startswith('{')):
-                src = Source()
-                continue
-            if (line.strip().startswith('name')):
-                src.name = (line.strip().split(':')[1]).strip()
-                continue
-            if (line.strip().startswith('fetch')):
-                src.fetch = (line.strip().split(':')[1]).strip()
-                continue
-            if (line.strip().startswith('goes-to')):
-                src.goes_to = (line.strip().split(':')[1]).strip()
-                continue
-            if (line.strip().startswith('profile')):
-                src.profile = (line.strip().split(':')[1]).strip()
-                continue
-            if not line:
-                continue
-            if (line.startswith('}')):
-                sources.append(src)
+        lines = f.readlines()
+
+    # parse the .src file
+    # keep it dumb for now
+    src = None
+    for i, line in enumerate(lines):
+        if (line.startswith('{')):
+            src = Source()
+            src.file = src_file
+            src.start = i
+            src.profile = ""
+            continue
+        if src is None:
+            continue
+        if (line.strip().startswith('name')):
+            src.name = (line.strip().split(':')[1]).strip()
+            continue
+        if (line.strip().startswith('fetch')):
+            src.fetch = (line.strip().split(':')[1]).strip()
+            continue
+        if (line.strip().startswith('goes-to')):
+            src.goes_to = (line.strip().split(':')[1]).strip()
+            continue
+        if (line.strip().startswith('profile')):
+            src.profile = (line.strip().split(':')[1]).strip()
+            continue
+        if (line.startswith('}')):
+            src.end = i
+            sources.append(src)
+            src = None
     return sources
 
 def print_sources(list: list[Source]):
@@ -61,47 +71,40 @@ def source_profiles(src: Source):
         return []
     return [p.strip() for p in src.profile.split(",") if p.strip()]
 
+# -- Find the one source a name (+ profile hint) refers to, or None --
+def find_source(src_name: str, profile: str = None):
+    matches = [s for s in get_all_sources() if s.name == src_name]
+    if not matches:
+        return None
+    if len(matches) == 1:
+        return matches[0]
+
+    scoped = [s for s in matches if profile and profile in source_profiles(s)]
+    if len(scoped) == 1:
+        return scoped[0]
+
+    print(src_name, "is ambiguous (", len(matches), "sources share that name), edit sources/ directly")
+    return None
+
 # -- List available sources/packages
 def cmd_list(args):
     print_sources(get_all_sources())
 
-# -- Tag a source file with a profile, in place --
-def tag_source_with_profile(src_name: str, profile: str):
-    files = glob.glob(get_source_dir()+"*.src")
-    for path in files:
-        with open(path, "r") as f:
-            lines = f.readlines()
+# -- Rewrite a source's profile field in place --
+def write_profile_field(src: Source, profiles: list[str]):
+    with open(src.file, "r") as f:
+        lines = f.readlines()
 
-        in_block = False
-        name_matches = False
-        profile_line = None
-        for i, line in enumerate(lines):
-            if line.startswith('{'):
-                in_block = True
-                name_matches = False
-                profile_line = None
-                continue
-            if in_block and line.strip().startswith('name'):
-                name_matches = (line.strip().split(':')[1]).strip() == src_name
-                continue
-            if in_block and line.strip().startswith('profile'):
-                profile_line = i
-                continue
-            if line.startswith('}'):
-                if name_matches:
-                    if profile_line is not None:
-                        current = lines[profile_line].split(':', 1)[1].strip()
-                        profiles = [p.strip() for p in current.split(',') if p.strip()]
-                        if profile not in profiles:
-                            profiles.append(profile)
-                        lines[profile_line] = "    profile: " + ", ".join(profiles) + "\n"
-                    else:
-                        lines.insert(i, "    profile: " + profile + "\n")
-                    with open(path, "w") as f:
-                        f.writelines(lines)
-                    return True
-                in_block = False
-    return False
+    new_line = "    profile: " + ", ".join(profiles) + "\n"
+    for i in range(src.start + 1, src.end):
+        if lines[i].strip().startswith('profile'):
+            lines[i] = new_line
+            break
+    else:
+        lines.insert(src.end, new_line)
+
+    with open(src.file, "w") as f:
+        f.writelines(lines)
 
 # -- Adopt a source for a profile
 def cmd_add(args):
@@ -114,46 +117,18 @@ def cmd_add(args):
         print("source does not exist")
         return
 
-    for src in get_all_sources():
-        if src.name == src_name and profile in source_profiles(src):
-            print(src_name, "already uses profile", profile)
-            return
+    src = find_source(src_name, profile)
+    if src is None:
+        return
 
-    tag_source_with_profile(src_name, profile)
+    profiles = source_profiles(src)
+    if profile in profiles:
+        print(src_name, "already uses profile", profile)
+        return
+
+    profiles.append(profile)
+    write_profile_field(src, profiles)
     print("added", src_name, "to profile", profile)
-
-# -- Untag a source file from a profile, in place --
-def untag_source_from_profile(src_name: str, profile: str):
-    files = glob.glob(get_source_dir()+"*.src")
-    for path in files:
-        with open(path, "r") as f:
-            lines = f.readlines()
-
-        in_block = False
-        name_matches = False
-        profile_line = None
-        for i, line in enumerate(lines):
-            if line.startswith('{'):
-                in_block = True
-                name_matches = False
-                profile_line = None
-                continue
-            if in_block and line.strip().startswith('name'):
-                name_matches = (line.strip().split(':')[1]).strip() == src_name
-                continue
-            if in_block and line.strip().startswith('profile'):
-                profile_line = i
-                continue
-            if line.startswith('}'):
-                if name_matches and profile_line is not None:
-                    current = lines[profile_line].split(':', 1)[1].strip()
-                    profiles = [p.strip() for p in current.split(',') if p.strip() and p.strip() != profile]
-                    lines[profile_line] = "    profile: " + ", ".join(profiles) + "\n"
-                    with open(path, "w") as f:
-                        f.writelines(lines)
-                    return True
-                in_block = False
-    return False
 
 # -- Drop a source from a profile
 def cmd_rm(args):
@@ -163,16 +138,15 @@ def cmd_rm(args):
         print("source does not exist")
         return
 
-    matched = None
-    for src in get_all_sources():
-        if src.name == src_name:
-            matched = src
-            break
+    src = find_source(src_name, profile)
+    if src is None:
+        return
 
-    if profile not in source_profiles(matched):
+    profiles = source_profiles(src)
+    if profile not in profiles:
         print(src_name, "does not use profile", profile)
         return
 
-    untag_source_from_profile(src_name, profile)
+    profiles.remove(profile)
+    write_profile_field(src, profiles)
     print("removed", src_name, "from profile", profile)
-
