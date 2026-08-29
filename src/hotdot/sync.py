@@ -53,7 +53,7 @@ def storage_name(src, all_sources):
     return src.name + "/" + profiles[0]
 
 def fetch_source(src, name):
-    dest = get_stowable_dir() / name
+    dest = get_stowable_dir() / name / src.goes_to
     if src.fetch == "local":
         return
     if dest.exists():

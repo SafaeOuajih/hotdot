@@ -28,16 +28,16 @@ def parse_source_file(src_file) -> list[Source]:
         if src is None:
             continue
         if (line.strip().startswith('name')):
-            src.name = (line.strip().split(':')[1]).strip()
+            src.name = (line.strip().split(':', 1)[1]).strip()
             continue
         if (line.strip().startswith('fetch')):
-            src.fetch = (line.strip().split(':')[1]).strip()
+            src.fetch = (line.strip().split(':', 1)[1]).strip()
             continue
         if (line.strip().startswith('goes-to')):
-            src.goes_to = (line.strip().split(':')[1]).strip()
+            src.goes_to = (line.strip().split(':', 1)[1]).strip()
             continue
         if (line.strip().startswith('profile')):
-            src.profile = (line.strip().split(':')[1]).strip()
+            src.profile = (line.strip().split(':', 1)[1]).strip()
             continue
         if (line.startswith('}')):
             src.end = i
