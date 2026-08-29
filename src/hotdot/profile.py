@@ -42,6 +42,10 @@ def profile_exist(name):
 def get_profile_file(name:str):
     return get_active_repo()+ "/" + PROFILES_FILE
 
+def get_all_profiles():
+    with open(get_active_repo()+ "/" + PROFILES_FILE, "r", -1, "utf_8") as f:
+        return [line.strip() for line in f if line.strip()]
+
 def cmd_profile(args):
     if profile_exist(args.name):
         print('profile already exist')

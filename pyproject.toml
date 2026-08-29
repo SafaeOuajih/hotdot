@@ -4,6 +4,9 @@ version = "0.1.0"
 requires-python = ">=3.9"
 description = "Stow based Dotfile manager."
 license = "MIT"
+dependencies = [
+  "argcomplete",
+]
 maintainers = [
   {name = "Safae Ouajih", email = "ouajih.safae@gmail.com"},
 ]

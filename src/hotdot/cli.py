@@ -1,11 +1,26 @@
 import argparse
 import sys
 
+import argcomplete
+
 from hotdot.__init__ import __version__
 from hotdot.init import cmd_init
-from hotdot.profile import cmd_profile
-from hotdot.source import cmd_add, cmd_list, cmd_rm
+from hotdot.profile import cmd_profile, get_all_profiles
+from hotdot.source import cmd_add, cmd_list, cmd_rm, get_all_sources
 from hotdot.sync import cmd_sync, cmd_switch
+
+# -- Completers must never blow up a user's shell: swallow errors, just offer nothing --
+def complete_profiles(prefix, parsed_args, **kwargs):
+    try:
+        return get_all_profiles()
+    except Exception:
+        return []
+
+def complete_packages(prefix, parsed_args, **kwargs):
+    try:
+        return sorted({s.name for s in get_all_sources()})
+    except Exception:
+        return []
 
 def build_parser():
     parser = argparse.ArgumentParser(
@@ -41,16 +56,16 @@ def build_parser():
         "add",
         help="add a source to a profile.",
     )
-    add_parser.add_argument("package")
-    add_parser.add_argument("profile")
+    add_parser.add_argument("package").completer = complete_packages
+    add_parser.add_argument("profile").completer = complete_profiles
     add_parser.set_defaults(func=cmd_add)
 
     rm_parser = subparsers.add_parser(
         "rm",
         help="remove a source from a profile.",
     )
-    rm_parser.add_argument("package")
-    rm_parser.add_argument("profile")
+    rm_parser.add_argument("package").completer = complete_packages
+    rm_parser.add_argument("profile").completer = complete_profiles
     rm_parser.set_defaults(func=cmd_rm)
 
     list_parser = subparsers.add_parser(
@@ -70,13 +85,14 @@ def build_parser():
         "switch",
         help="switch the active profile.",
     )
-    switch_parser.add_argument("name")
+    switch_parser.add_argument("name").completer = complete_profiles
     switch_parser.set_defaults(func=cmd_switch)
 
     return parser
 
 def main():
     parser = build_parser()
+    argcomplete.autocomplete(parser)
     args = parser.parse_args()
     args.func(args)
     return 0
