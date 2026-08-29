@@ -79,6 +79,16 @@ def build_parser():
         "sync",
         help="fetch sources and stow the active profile.",
     )
+    sync_parser.add_argument(
+        "-f", "--force",
+        action="store_true",
+        help="back up and take over files that already exist and aren't managed by stow.",
+    )
+    sync_parser.add_argument(
+        "-y", "--yes",
+        action="store_true",
+        help="assume yes to the -f confirmation prompt, don't ask.",
+    )
     sync_parser.set_defaults(func=cmd_sync)
 
     switch_parser = subparsers.add_parser(

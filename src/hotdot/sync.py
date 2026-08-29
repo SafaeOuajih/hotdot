@@ -1,5 +1,7 @@
+import re
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
 from hotdot.profile import get_active_repo, profile_exist, ACTIVE_PROFILE_FILE
@@ -95,7 +97,44 @@ def fetch_source(src, name):
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         print("hotdot: failed to fetch", src.name, "-", e)
 
-def run_stow(args):
+# -- Pull the conflicting target paths out of stow's "WARNING! ... conflicts" output --
+def parse_conflicts(output):
+    return re.findall(r"^\s*\*.*:\s(.+)$", output, re.MULTILINE)
+
+# -- Back up whatever's really at each conflicting path so stow can take it over --
+def resolve_conflicts(paths):
+    home = Path.home()
+    for rel in paths:
+        target = home / rel
+        if not target.exists() and not target.is_symlink():
+            continue
+        backup = target.with_name(target.name + ".bak-" + str(int(time.time())))
+        print("hotdot: backing up", target, "->", backup)
+        shutil.move(str(target), str(backup))
+
+def run_stow(args, force=False, assume_yes=False):
+    dry_run = subprocess.run(["stow", "-n", *args], capture_output=True, text=True)
+    if dry_run.returncode != 0:
+        conflicts = parse_conflicts(dry_run.stderr + dry_run.stdout)
+        if not conflicts:
+            print(dry_run.stderr, end="")
+            print("hotdot: stow failed, see the warnings above")
+            return False
+        print("hotdot: these files already exist and are not managed by stow:")
+        for c in conflicts:
+            print(" ", c)
+        if not force:
+            print("hotdot: re-run with -f to back these up and let hotdot manage them instead")
+            return False
+        if assume_yes:
+            print("Back them up and overwrite? [y/N] y (assumed, -y)")
+            answer = "y"
+        else:
+            answer = input("Back them up and overwrite? [y/N] ").strip().lower()
+        if answer != "y":
+            print("hotdot: aborted, nothing changed")
+            return False
+        resolve_conflicts(conflicts)
     try:
         subprocess.run(["stow", *args], check=True)
         return True
@@ -114,7 +153,7 @@ def rebuild_stage(stage, stowable, mapping):
         (stage / name).symlink_to(stowable / storage)
 
 # -- Fetch, stow the given profile's sources and cleanly unstow whatever it dropped --
-def sync_profile(profile):
+def sync_profile(profile, force=False, assume_yes=False):
     all_sources = get_all_sources()
     sources = [s for s in all_sources if profile in source_profiles(s)]
 
@@ -139,9 +178,9 @@ def sync_profile(profile):
 
     home = str(Path.home())
     if removed:
-        run_stow(["-D", "-t", home, "-d", str(stage), *sorted(removed)])
+        run_stow(["-D", "-t", home, "-d", str(stage), *sorted(removed)], force=force, assume_yes=assume_yes)
     if active:
-        run_stow(["-t", home, "-d", str(stage), *sorted(active)])
+        run_stow(["-t", home, "-d", str(stage), *sorted(active)], force=force, assume_yes=assume_yes)
     rebuild_stage(stage, stowable, active)
 
     write_state(active)
@@ -153,7 +192,7 @@ def cmd_sync(args):
         print("no active profile set")
         return
 
-    packages = sync_profile(profile)
+    packages = sync_profile(profile, force=args.force, assume_yes=args.yes)
     if packages:
         print("synced", len(packages), "package(s)")
     else:
