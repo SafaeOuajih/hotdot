@@ -52,10 +52,24 @@ def storage_name(src, all_sources):
         return None
     return src.name + "/" + profiles[0]
 
+# -- Non-local sources are reproducible via `hotdot sync`; keep their copy out of git --
+def ignore_fetched(name):
+    repo = Path(get_active_repo())
+    if not (repo / ".git").exists():
+        return
+    gitignore = repo / ".gitignore"
+    entry = "stowable/" + name + "/"
+    lines = gitignore.read_text().splitlines() if gitignore.exists() else []
+    if entry in lines:
+        return
+    with open(gitignore, "a") as f:
+        f.write(entry + "\n")
+
 def fetch_source(src, name):
     dest = get_stowable_dir() / name / src.goes_to
     if src.fetch == "local":
         return
+    ignore_fetched(name)
     if dest.exists():
         return
     dest.parent.mkdir(parents=True, exist_ok=True)
