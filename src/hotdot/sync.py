@@ -1,3 +1,4 @@
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -65,6 +66,17 @@ def ignore_fetched(name):
     with open(gitignore, "a") as f:
         f.write(entry + "\n")
 
+def fetch_sparse(src, dest):
+    tmp = Path(str(dest) + ".fetch-tmp")
+    shutil.rmtree(tmp, ignore_errors=True)
+    try:
+        subprocess.run(["git", "clone", "-q", "--filter=blob:none", "--no-checkout", "--sparse", src.fetch, str(tmp)], check=True)
+        subprocess.run(["git", "-C", str(tmp), "sparse-checkout", "set", src.path], check=True)
+        subprocess.run(["git", "-C", str(tmp), "checkout", "-q"], check=True)
+        shutil.move(str(tmp / src.path), str(dest))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
 def fetch_source(src, name):
     dest = get_stowable_dir() / name / src.goes_to
     if src.fetch == "local":
@@ -74,7 +86,10 @@ def fetch_source(src, name):
         return
     dest.parent.mkdir(parents=True, exist_ok=True)
     try:
-        subprocess.run(["git", "clone", "-q", src.fetch, str(dest)], check=True)
+        if src.path:
+            fetch_sparse(src, dest)
+        else:
+            subprocess.run(["git", "clone", "-q", src.fetch, str(dest)], check=True)
     except subprocess.CalledProcessError:
         print("hotdot: failed to fetch", src.name)
 

@@ -6,6 +6,7 @@ class Source():
     fetch : str
     goes_to : str
     profile : str
+    path : str
     file : str
     start : int
     end : int
@@ -24,6 +25,7 @@ def parse_source_file(src_file) -> list[Source]:
             src.file = src_file
             src.start = i
             src.profile = ""
+            src.path = ""
             continue
         if src is None:
             continue
@@ -38,6 +40,9 @@ def parse_source_file(src_file) -> list[Source]:
             continue
         if (line.strip().startswith('profile')):
             src.profile = (line.strip().split(':', 1)[1]).strip()
+            continue
+        if (line.strip().startswith('path')):
+            src.path = (line.strip().split(':', 1)[1]).strip()
             continue
         if (line.startswith('}')):
             src.end = i
